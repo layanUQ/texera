@@ -93,3 +93,7 @@ scalapb/scalapb
 # Ignoring credentials
 client_secret_*
 StoredCredential*
+node_modules/
+yarn.lock
+project/build.properties
+package.json
