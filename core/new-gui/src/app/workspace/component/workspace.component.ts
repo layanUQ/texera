@@ -1,5 +1,5 @@
 import { Location } from "@angular/common";
-import { AfterViewInit, Component, OnDestroy } from "@angular/core";
+import { AfterViewInit, OnInit, Component, OnDestroy } from "@angular/core";
 import { ActivatedRoute } from "@angular/router";
 import { environment } from "../../../environments/environment";
 import { Version } from "../../../environments/version";
@@ -22,6 +22,9 @@ import { OperatorCacheStatusService } from "../service/workflow-status/operator-
 import { of } from "rxjs";
 import { isDefined } from "../../common/util/predicate";
 import { WorkflowCollabService } from "../service/workflow-collab/workflow-collab.service";
+import { UserProjectService } from "src/app/dashboard/service/user-project/user-project.service";
+
+export const SAVE_DEBOUNCE_TIME_IN_MS = 300;
 
 @UntilDestroy()
 @Component({
@@ -33,7 +36,8 @@ import { WorkflowCollabService } from "../service/workflow-collab/workflow-colla
     // { provide: OperatorMetadataService, useClass: StubOperatorMetadataService },
   ],
 })
-export class WorkspaceComponent implements AfterViewInit, OnDestroy {
+export class WorkspaceComponent implements AfterViewInit, OnInit, OnDestroy {
+  public pid: number = 0;
   public gitCommitHash: string = Version.raw;
   public showResultPanel: boolean = false;
   userSystemEnabled = environment.userSystemEnabled;
@@ -55,8 +59,24 @@ export class WorkspaceComponent implements AfterViewInit, OnDestroy {
     private location: Location,
     private route: ActivatedRoute,
     private operatorMetadataService: OperatorMetadataService,
-    private message: NzMessageService
+    private message: NzMessageService,
+    private userProjectService: UserProjectService
   ) {}
+
+  ngOnInit() {
+    /**
+     * On initialization of the workspace, there are two possibilities regarding which component has
+     * routed to this component:
+     *
+     * 1. Routed to this component from within UserProjectSection component
+     *    - track the pid identifying that project
+     *    - upon persisting of a workflow, must also ensure it is also added to the project
+     *
+     * 2. Routed to this component from SavedWorkflowSection component
+     *    - there is no related project
+     */
+    this.pid = parseInt(this.route.snapshot.queryParams.pid) ?? 0;
+  }
 
   ngAfterViewInit(): void {
     /**
@@ -110,7 +130,7 @@ export class WorkspaceComponent implements AfterViewInit, OnDestroy {
   registerAutoCacheWorkFlow(): void {
     this.workflowActionService
       .workflowChanged()
-      .pipe(debounceTime(100))
+      .pipe(debounceTime(SAVE_DEBOUNCE_TIME_IN_MS))
       .pipe(untilDestroyed(this))
       .subscribe(() => {
         this.workflowCacheService.setCacheWorkflow(this.workflowActionService.getWorkflow());
@@ -120,7 +140,7 @@ export class WorkspaceComponent implements AfterViewInit, OnDestroy {
   registerAutoPersistWorkflow(): void {
     this.workflowActionService
       .workflowChanged()
-      .pipe(debounceTime(100))
+      .pipe(debounceTime(SAVE_DEBOUNCE_TIME_IN_MS))
       .pipe(untilDestroyed(this))
       .subscribe(() => {
         if (

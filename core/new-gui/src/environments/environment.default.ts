@@ -65,6 +65,8 @@ export const defaultEnvironment = {
    */
   debuggerEnabled: false,
 
+  asyncRenderingEnabled: false,
+
   /**
    * the access code for mapbox
    */
@@ -77,6 +79,7 @@ export const defaultEnvironment = {
    */
   google: {
     clientID: "",
+    publicKey: "",
   },
 
   /**

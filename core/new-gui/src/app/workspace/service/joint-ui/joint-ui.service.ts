@@ -2,12 +2,14 @@ import { Injectable } from "@angular/core";
 import { OperatorMetadataService } from "../operator-metadata/operator-metadata.service";
 import { OperatorSchema } from "../../types/operator-schema.interface";
 
-import * as joint from "jointjs";
-import { OperatorLink, OperatorPredicate, Point } from "../../types/workflow-common.interface";
-import { Group, GroupBoundingBox } from "../workflow-graph/model/operator-group";
-import { OperatorState, OperatorStatistics } from "../../types/execute-workflow.interface";
 import { OperatorResultCacheStatus } from "../../types/workflow-websocket.interface";
 import { abbreviateNumber } from "js-abbreviation-number";
+import { Point, OperatorPredicate, OperatorLink, CommentBox } from "../../types/workflow-common.interface";
+import { Group, GroupBoundingBox } from "../workflow-graph/model/operator-group";
+import { OperatorState, OperatorStatistics } from "../../types/execute-workflow.interface";
+import * as joint from "jointjs";
+import { jitOnlyGuardedExpression } from "@angular/compiler/src/render3/util";
+import { fromEvent, fromEventPattern, Observable } from "rxjs";
 
 /**
  * Defines the SVG element for the breakpoint button
@@ -101,7 +103,6 @@ export const linkPathStrokeColor = "#919191";
 class TexeraCustomJointElement extends joint.shapes.devs.Model {
   markup = `<g class="element-node">
       <rect class="body"></rect>
-      <rect class="boundary"></rect>
       <image class="${operatorIconClass}"></image>
       <text class="${operatorNameBGClass}"></text>
       <text class="${operatorNameClass}"></text>
@@ -115,6 +116,9 @@ class TexeraCustomJointElement extends joint.shapes.devs.Model {
       <text class="${operatorStateClass}"></text>
       <text class="${operatorCacheTextClass}"></text>
       <image class="${operatorCacheIconClass}"></image>
+      <rect class="boundary"></rect>
+      <path class="left-boundary"></path>
+      <path class="right-boundary"></path>
       ${deleteButtonSVG}
     </g>`;
 }
@@ -131,6 +135,13 @@ class TexeraCustomGroupElement extends joint.shapes.devs.Model {
     </g>`;
 }
 
+class TexeraCustomCommentElement extends joint.shapes.devs.Model {
+  markup = `<g class = "element-node">
+  <rect class = "body"></rect>
+  ${deleteButtonSVG}
+  <image></image>
+  </g>`;
+}
 /**
  * JointUIService controls the shape of an operator and a link
  *  when they are displayed by JointJS.
@@ -160,6 +171,8 @@ export class JointUIService {
   public static readonly DEFAULT_GROUP_MARGIN_BOTTOM = 40;
 
   private operatorSchemas: ReadonlyArray<OperatorSchema> = [];
+  public static readonly DEFAULT_COMMENT_WIDTH = 32;
+  public static readonly DEFAULT_COMMENT_HEIGHT = 32;
 
   constructor(private operatorMetadataService: OperatorMetadataService) {
     // initialize the operator information
@@ -183,6 +196,7 @@ export class JointUIService {
    *
    * @returns JointJS Element
    */
+
   public getJointOperatorElement(operator: OperatorPredicate, point: Point): joint.dia.Element {
     // check if the operatorType exists in the operator metadata
     const operatorSchema = this.operatorSchemas.find(op => op.operatorType === operator.operatorType);
@@ -479,6 +493,21 @@ export class JointUIService {
     });
   }
 
+  public getCommentElement(commentBox: CommentBox): joint.dia.Element {
+    const basic = new joint.shapes.standard.Rectangle();
+    basic.position(commentBox.commentBoxPosition.x, commentBox.commentBoxPosition.y);
+    basic.resize(120, 50);
+    const commentElement = new TexeraCustomCommentElement({
+      position: commentBox.commentBoxPosition,
+      size: {
+        width: JointUIService.DEFAULT_COMMENT_WIDTH,
+        height: JointUIService.DEFAULT_COMMENT_HEIGHT,
+      },
+      attrs: JointUIService.getCustomCommentStyleAttrs(),
+    });
+    commentElement.set("id", commentBox.commentBoxID);
+    return commentElement;
+  }
   /**
    * This function converts a Texera source and target OperatorPort to
    *   a JointJS link cell <joint.dia.Link> that could be added to the JointJS.
@@ -742,12 +771,30 @@ export class JointUIService {
         ry: "5px",
       },
       "rect.boundary": {
-        fill: "rgba(0,0,0,0)",
-        width: this.DEFAULT_OPERATOR_WIDTH + 50,
-        height: this.DEFAULT_OPERATOR_HEIGHT + 100,
+        fill: "rgba(0, 0, 0, 0)",
+        width: this.DEFAULT_OPERATOR_WIDTH + 20,
+        height: this.DEFAULT_OPERATOR_HEIGHT + 20,
         ref: "rect.body",
-        "ref-x": -25,
-        "ref-y": -50,
+        "ref-x": -10,
+        "ref-y": -10,
+      },
+      "path.right-boundary": {
+        ref: "rect.body",
+        d: "M 20 80 C 0 60 0 20 20 0",
+        stroke: "rgba(0,0,0,0)",
+        "stroke-width": "10",
+        fill: "transparent",
+        "ref-x": 70,
+        "ref-y": -10,
+      },
+      "path.left-boundary": {
+        ref: "rect.body",
+        d: "M 0 80 C 20 60 20 20 0 0",
+        stroke: "rgba(0,0,0,0)",
+        "stroke-width": "10",
+        fill: "transparent",
+        "ref-x": -30,
+        "ref-y": -10,
       },
       ".texera-operator-name-background": {
         text: operatorDisplayName,
@@ -894,4 +941,46 @@ export class JointUIService {
     };
     return groupStyleAttrs;
   }
+
+  public static getCustomCommentStyleAttrs(): joint.shapes.devs.ModelSelectors {
+    const commentStyleAttrs = {
+      rect: {
+        fill: "#F2F4F5",
+        "follow-scale": true,
+        stroke: "#CED4D9",
+        "stroke-width": "0",
+        rx: "5px",
+        ry: "5px",
+      },
+      image: {
+        "xlink:href": "assets/operator_images/icons8-chat_bubble.png",
+        width: 32,
+        height: 32,
+        "ref-x": 0.5,
+        "ref-y": 0.5,
+        ref: "rect",
+        "x-alignment": "middle",
+        "y-alignment": "middle",
+      },
+      ".delete-button": {
+        x: 22,
+        y: -16,
+        cursor: "pointer",
+        fill: "#D8656A",
+        event: "element:delete",
+      },
+    };
+    return commentStyleAttrs;
+  }
+}
+
+export function fromJointPaperEvent<T extends keyof joint.dia.Paper.EventMap = keyof joint.dia.Paper.EventMap>(
+  paper: joint.dia.Paper,
+  eventName: T,
+  context?: any
+): Observable<Parameters<joint.dia.Paper.EventMap[T]>> {
+  return fromEventPattern(
+    handler => paper.on(eventName, handler, context), // addHandler
+    (handler, signal) => paper.off(eventName as string, handler, context) // removeHandler
+  );
 }

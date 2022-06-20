@@ -1,7 +1,11 @@
 .user-icon {
-  margin-right: 72px;
+  margin-right: 80px;
 }
 
-.user-dropdown {
-  width: 100%;
+.caret-off::before {
+  display: none;
+}
+
+.caret-off::after {
+  display: none;
 }

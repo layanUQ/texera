@@ -358,6 +358,7 @@ export class ExecuteWorkflowService {
       case ExecutionState.Aborted:
       case ExecutionState.Uninitialized:
       case ExecutionState.BreakpointTriggered:
+        this.workflowActionService.toggleLockListen(true);
         if (this.workflowCollabService.isLockGranted()) {
           this.workflowActionService.enableWorkflowModification();
         }
@@ -368,6 +369,7 @@ export class ExecuteWorkflowService {
       case ExecutionState.Resuming:
       case ExecutionState.Running:
       case ExecutionState.Initializing:
+        this.workflowActionService.toggleLockListen(false);
         this.workflowActionService.disableWorkflowModification();
         return;
       default:
@@ -391,8 +393,19 @@ export class ExecuteWorkflowService {
     const getInputPortOrdinal = (operatorID: string, inputPortID: string): number => {
       return workflowGraph.getOperator(operatorID).inputPorts.findIndex(port => port.portID === inputPortID);
     };
+    const getInputPortName = (operatorID: string, inputPortID: string): string => {
+      return (
+        workflowGraph.getOperator(operatorID).inputPorts[getInputPortOrdinal(operatorID, inputPortID)].displayName ?? ""
+      );
+    };
     const getOutputPortOrdinal = (operatorID: string, outputPortID: string): number => {
       return workflowGraph.getOperator(operatorID).outputPorts.findIndex(port => port.portID === outputPortID);
+    };
+    const getOutputPortName = (operatorID: string, outputPortID: string): string => {
+      return (
+        workflowGraph.getOperator(operatorID).outputPorts[getOutputPortOrdinal(operatorID, outputPortID)].displayName ??
+        ""
+      );
     };
 
     const operators: LogicalOperator[] = workflowGraph.getAllEnabledOperators().map(op => ({
@@ -405,10 +418,12 @@ export class ExecuteWorkflowService {
       origin: {
         operatorID: link.source.operatorID,
         portOrdinal: getOutputPortOrdinal(link.source.operatorID, link.source.portID),
+        portName: getOutputPortName(link.source.operatorID, link.source.portID),
       },
       destination: {
         operatorID: link.target.operatorID,
         portOrdinal: getInputPortOrdinal(link.target.operatorID, link.target.portID),
+        portName: getInputPortName(link.target.operatorID, link.target.portID),
       },
     }));
 
